@@ -77,7 +77,13 @@ bool AsyncSerial::Open() {
 
 void AsyncSerial::Close() {
   io_context_.stop();
-  if (io_thread_.joinable()) io_thread_.join();
+  if (io_thread_.joinable()) {
+    if (io_thread_.get_id() == std::this_thread::get_id()) {
+      io_thread_.detach();
+    } else {
+      io_thread_.join();
+    }
+  }
   io_context_.reset();
   
   if (IsOpened()) {

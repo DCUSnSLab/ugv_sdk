@@ -83,12 +83,24 @@ bool AsyncCAN::Open() {
 
 void AsyncCAN::Close() {
   io_context_.stop();
-  if (io_thread_.joinable()) io_thread_.join();
+
+  // `Close()` can be reached from the ASIO callback running on `io_thread_`.
+  // Joining the current thread throws `std::system_error("Resource deadlock avoided")`.
+  if (io_thread_.joinable()) {
+    if (io_thread_.get_id() == std::this_thread::get_id()) {
+      io_thread_.detach();
+    } else {
+      io_thread_.join();
+    }
+  }
   io_context_.reset();
   
   // release port fd
-  const int close_result = ::close(can_fd_);
-  can_fd_ = -1;
+  if (can_fd_ >= 0) {
+    const int close_result = ::close(can_fd_);
+    (void)close_result;
+    can_fd_ = -1;
+  }
 
   port_opened_ = false;
 }
